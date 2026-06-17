@@ -1,0 +1,8 @@
+Account,Account Name,Type,Balance
+1000,Checking,Bank,15000
+1100,Accounts Receivable,Accounts Receivable,5000
+2000,Accounts Payable,Accounts Payable,3000
+3000,Owner Equity,Equity,12000
+4000,Sales,Income,
+5000,COGS,Cost of Goods Sold,
+9999,Suspense,Other Current Asset,

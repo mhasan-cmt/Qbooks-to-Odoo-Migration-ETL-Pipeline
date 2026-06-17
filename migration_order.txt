@@ -1,0 +1,53 @@
+Step 1: Migration Order
+
+-> Chart of Accounts (everything posts to accounts)
+-> Taxes (referenced by products/invoices)
+-> Customers + Vendors (res.partner)
+-> Products/Items (if you track them)
+-> Open Invoices (AR) & Open Bills (AP) — only unpaid/partially paid at cutoff
+-> Opening Balances (journal entry for everything else)
+-> Payments & reconciliation
+-> Historical/closed transactions
+
+Step 2: Key Migration Decisions
+
+Cutoff date strategy — Don't migrate every historical journal entry. Standard practice:
+
+1. Migrate open items (unpaid invoices/bills) as individual records so they can be paid/reconciled in Odoo.
+2. Migrate everything else as a single Opening Balance journal entry as of the cutoff date (e.g., trial balance per account).
+3. Keep QuickBooks accessible (read-only) for deep history.
+
+Opening balances for customers/vendors — Two approaches:
+
+a. Preferred: Import open invoices/bills individually → partner balance derives automatically. Cleaner reconciliation later.
+b. Quick: One opening-balance journal entry per partner against a "Opening Balance" equity/suspense account.
+
+Account mapping — QB account types → Odoo account types is the #1 source of errors (QB "Other Current Asset" etc. must map to Odoo's account type enum).
+
+
+Step 3: Step-by-Step Procedure
+A. Export from QuickBooks
+
+1. CoA: Reports → Account Listing → export Excel; or Lists → Chart of Accounts → export IIF.
+2. Customers/Vendors: Customer/Vendor Center → Excel export (get balances, terms, tax IDs, addresses, email).
+3. Open AR/AP: Reports → "Open Invoices" and "Unpaid Bills Detail."
+4. Trial Balance as of cutoff date (for opening balances).
+5. General Ledger / Journal export if migrating detail.
+
+B. Set up Odoo
+
+1. Install Accounting (or Invoicing) app, configure Company, fiscal year, currencies.
+2. Configure taxes, payment terms, journals (Sales, Purchase, Bank, Misc).
+3. Decide on the suspense/opening-balance account.
+
+C. Transform (the ETL pipeline below) — clean, map account types, normalize partner refs, dedupe, validate.
+D. Import into Odoo (in the dependency order above)
+
+Use Settings → Technical → Import (UI) for first runs, or the External API (XML-RPC/JSON-RPC) for the automated pipeline.
+Import CoA → Partners → Open Invoices/Bills → Opening Balance JE → Payments.
+
+E. Reconcile & Validate
+
+Trial Balance in Odoo must equal QB Trial Balance at cutoff (to the cent).
+AR Aging and AP Aging must match.
+Partner counts and balances match.
