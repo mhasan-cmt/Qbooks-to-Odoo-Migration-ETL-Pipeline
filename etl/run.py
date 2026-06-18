@@ -21,7 +21,7 @@ def main():
         print(f"         blocking={r['blocking']} warnings={r['warnings']} "
               f"clean={r['clean']}")
         print(f"         counts={r['counts']}")
-        if a.stage == "all" and not r["clean"]:
+        if not r["clean"]:
             print("Blocking issues present. Fix source data (Stage 2) and re-run.")
             sys.exit(1)
 

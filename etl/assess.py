@@ -6,9 +6,12 @@ from __future__ import annotations
 import re
 from datetime import datetime
 import pandas as pd
-from .common import read_source, apply_mapping, out_path, ENTITY_ORDER
+from .common import (
+    read_source, apply_mapping, out_path, parse_num, date_valid,
+)
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+ASSESS_ORDER = ["chart_of_accounts", "partners", "invoices", "bills", "trial_balance"]
 
 
 def _add(issues, entity, row_idx, ref, severity, field, message):
@@ -16,25 +19,6 @@ def _add(issues, entity, row_idx, ref, severity, field, message):
         "entity": entity, "row": row_idx, "ref": ref,
         "severity": severity, "field": field, "issue": message,
     })
-
-
-def _num(v):
-    try:
-        return float(str(v).replace(",", "").replace("$", "").strip())
-    except (ValueError, AttributeError):
-        return None
-
-
-def _date_ok(v):
-    if v is None or pd.isna(v):
-        return False
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%m-%d-%Y"):
-        try:
-            datetime.strptime(str(v).strip(), fmt)
-            return True
-        except ValueError:
-            continue
-    return False
 
 
 def assess_coa(df, cfg, issues):
@@ -82,7 +66,7 @@ def assess_partners(df, cfg, issues):
         if pd.notna(email) and not EMAIL_RE.match(str(email).strip()):
             _add(issues, e, i, ref, "WARN", "email", f"Invalid email '{email}'")
         ob = r.get("opening_balance")
-        if pd.notna(ob) and _num(ob) is None:
+        if pd.notna(ob) and parse_num(ob) is None:
             _add(issues, e, i, ref, "BLOCK", "opening_balance",
                  f"Non-numeric opening balance '{ob}'")
 
@@ -98,17 +82,66 @@ def assess_documents(df, cfg, issues, entity):
         elif partners and str(r.get("partner")).strip().lower() not in partners:
             _add(issues, entity, i, ref, "BLOCK", "partner",
                  f"Partner '{r.get('partner')}' not found in partners file")
-        if not _date_ok(r.get("invoice_date")):
+        if not date_valid(r.get("invoice_date")):
             _add(issues, entity, i, ref, "BLOCK", "invoice_date",
                  f"Invalid/missing date '{r.get('invoice_date')}'")
-        amt = _num(r.get("amount_total"))
+        amt = parse_num(r.get("amount_total"))
         if amt is None:
             _add(issues, entity, i, ref, "BLOCK", "amount_total",
                  f"Non-numeric amount '{r.get('amount_total')}'")
+        residual = parse_num(r.get("amount_residual"))
+        if pd.notna(r.get("amount_residual")) and residual is None:
+            _add(issues, entity, i, ref, "BLOCK", "amount_residual",
+                 f"Non-numeric open balance '{r.get('amount_residual')}'")
+        elif amt is not None and residual is not None and residual > amt + 0.005:
+            _add(issues, entity, i, ref, "WARN", "amount_residual",
+                 f"Open balance ({residual}) exceeds total amount ({amt})")
         ac = r.get("account_code")
         if coa_codes and pd.notna(ac) and str(ac) not in coa_codes:
             _add(issues, entity, i, ref, "WARN", "account_code",
                  f"Account '{ac}' not in chart of accounts")
+
+
+def assess_trial_balance(df, cfg, issues):
+    e = "trial_balance"
+    coa_codes = _coa_codes(cfg)
+    total_debit = 0.0
+    total_credit = 0.0
+    for i, r in df.iterrows():
+        ref = r.get("code") or i
+        code = r.get("code")
+        if pd.isna(code) or not str(code).strip():
+            _add(issues, e, i, ref, "BLOCK", "code", "Missing account code")
+        elif coa_codes and str(code) not in coa_codes:
+            _add(issues, e, i, ref, "BLOCK", "code",
+                 f"Account '{code}' not in chart of accounts")
+        debit_raw, credit_raw = r.get("debit"), r.get("credit")
+        debit = parse_num(debit_raw) if pd.notna(debit_raw) else 0.0
+        credit = parse_num(credit_raw) if pd.notna(credit_raw) else 0.0
+        if pd.notna(debit_raw) and debit is None:
+            _add(issues, e, i, ref, "BLOCK", "debit",
+                 f"Non-numeric debit '{debit_raw}'")
+            debit = 0.0
+        if pd.notna(credit_raw) and credit is None:
+            _add(issues, e, i, ref, "BLOCK", "credit",
+                 f"Non-numeric credit '{credit_raw}'")
+            credit = 0.0
+        total_debit += debit or 0.0
+        total_credit += credit or 0.0
+    if abs(round(total_debit - total_credit, 2)) > 0.005:
+        _add(issues, e, "-", "trial_balance", "WARN", "balance",
+             f"Trial balance out of balance: debits={total_debit} credits={total_credit}")
+
+
+def assess_config(cfg, issues):
+    """Cross-entity config checks that depend on loaded source data."""
+    ob_acc = cfg.get("opening_balance_account")
+    if not ob_acc:
+        return
+    coa_codes = _coa_codes(cfg)
+    if coa_codes and str(ob_acc) not in coa_codes:
+        _add(issues, "config", "-", ob_acc, "BLOCK", "opening_balance_account",
+             f"Opening balance account '{ob_acc}' not in chart of accounts")
 
 
 def _coa_codes(cfg):
@@ -133,21 +166,22 @@ ASSESSORS = {
     "partners": assess_partners,
     "invoices": lambda d, c, i: assess_documents(d, c, i, "invoices"),
     "bills": lambda d, c, i: assess_documents(d, c, i, "bills"),
+    "trial_balance": assess_trial_balance,
 }
 
 
 def run_assessment(client: str, cfg: dict) -> dict:
     issues = []
     counts = {}
-    for entity in ENTITY_ORDER:
-        if entity not in ASSESSORS:
-            continue
+    for entity in ASSESS_ORDER:
         raw = read_source(client, cfg, entity)
         if raw is None:
             continue
         df = apply_mapping(raw, cfg, entity)
         counts[entity] = len(df)
         ASSESSORS[entity](df, cfg, issues)
+
+    assess_config(cfg, issues)
 
     idf = pd.DataFrame(issues, columns=["entity", "row", "ref", "severity", "field", "issue"])
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")

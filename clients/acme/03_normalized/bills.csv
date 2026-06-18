@@ -1,0 +1,2 @@
+id,move_type,partner_id/id,ref,invoice_date,invoice_date_due,amount_total,amount_residual
+bil_0,in_invoice,partner_acme_supplies,BILL-001,2025-01-08,2025-02-07,3000.0,3000.0

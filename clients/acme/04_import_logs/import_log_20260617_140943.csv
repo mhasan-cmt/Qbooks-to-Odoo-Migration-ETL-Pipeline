@@ -1,0 +1,6 @@
+entity,ref,action,note
+chart_of_accounts,-,DRY_RUN,7 rows ready
+partners,-,DRY_RUN,3 rows ready
+invoices,-,DRY_RUN,2 rows ready
+bills,-,DRY_RUN,1 rows ready
+opening_balance,-,DRY_RUN,5 rows ready

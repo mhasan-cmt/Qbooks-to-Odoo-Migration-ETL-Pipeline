@@ -1,0 +1,5 @@
+entity,source_count,odoo_count,match
+chart_of_accounts,7,,True
+partners,3,,True
+invoices,2,,True
+bills,1,,True

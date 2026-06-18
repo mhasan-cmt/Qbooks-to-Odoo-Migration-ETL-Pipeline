@@ -54,6 +54,10 @@ mappings:
     "Open Balance":    amount_residual
     "Amount":          amount_total
     "Account":         account_code
+  trial_balance:
+    "Account":         code
+    "Debit":           debit
+    "Credit":          credit
 
 # ---- QB account type -> Odoo account_type enum ----
 # Odoo enums: asset_receivable, asset_cash, asset_current, asset_non_current,

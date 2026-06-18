@@ -4,31 +4,12 @@ using Odoo column names / external IDs so they load via UI import or API.
 """
 from __future__ import annotations
 import re
-from datetime import datetime
 import pandas as pd
-from .common import read_source, apply_mapping, out_path
+from .common import read_source, apply_mapping, out_path, parse_num_default, parse_date
 
 
 def _slug(v):
     return re.sub(r"[^a-z0-9]+", "_", str(v).strip().lower()).strip("_")
-
-
-def _num(v, default=0.0):
-    try:
-        return round(float(str(v).replace(",", "").replace("$", "").strip()), 2)
-    except (ValueError, AttributeError, TypeError):
-        return default
-
-
-def _date(v):
-    if v is None or pd.isna(v):
-        return ""
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%m-%d-%Y"):
-        try:
-            return datetime.strptime(str(v).strip(), fmt).strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return ""
 
 
 def norm_coa(client, cfg):
@@ -76,11 +57,11 @@ def _norm_docs(client, cfg, entity, move_type):
         "move_type": move_type,
         "partner_id/id": df["partner"].apply(lambda n: f"partner_{_slug(n)}"),
         "ref": df.get("ref"),
-        "invoice_date": df["invoice_date"].apply(_date),
-        "invoice_date_due": df.get("date_due", pd.Series([None]*len(df))).apply(_date),
-        "amount_total": df["amount_total"].apply(_num),
+        "invoice_date": df["invoice_date"].apply(parse_date),
+        "invoice_date_due": df.get("date_due", pd.Series([None]*len(df))).apply(parse_date),
+        "amount_total": df["amount_total"].apply(parse_num_default),
         "amount_residual": df.get("amount_residual",
-                                  df["amount_total"]).apply(_num),
+                                   df["amount_total"]).apply(parse_num_default),
     })
     return out
 
@@ -99,13 +80,13 @@ def build_opening_balance(client, cfg):
     if raw is None:
         return None
     raw = raw.rename(columns={c: c.strip() for c in raw.columns})
-    # expects columns: code, debit, credit (adjust mapping as needed)
+    df = apply_mapping(raw, cfg, "trial_balance")
     lines = []
-    for _, r in raw.iterrows():
-        code = r.get("Account") or r.get("code")
-        debit = _num(r.get("Debit"), 0.0)
-        credit = _num(r.get("Credit"), 0.0)
-        if not code or (debit == 0 and credit == 0):
+    for _, r in df.iterrows():
+        code = r.get("code")
+        debit = parse_num_default(r.get("debit"), 0.0)
+        credit = parse_num_default(r.get("credit"), 0.0)
+        if pd.isna(code) or not str(code).strip() or (debit == 0 and credit == 0):
             continue
         lines.append({"account_id/id": f"acc_{_slug(code)}",
                       "debit": debit, "credit": credit})

@@ -1,9 +1,45 @@
 """Config loading, path resolution, and CSV/Excel IO helpers."""
 from __future__ import annotations
 import os, re
+from datetime import datetime
 from pathlib import Path
 import yaml
 import pandas as pd
+
+DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%m-%d-%Y")
+
+
+def parse_num(v):
+    """Return a float, or None if the value is not numeric."""
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return None
+    try:
+        return float(str(v).replace(",", "").replace("$", "").strip())
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
+def parse_num_default(v, default=0.0):
+    """Return a rounded float, using default when the value is not numeric."""
+    n = parse_num(v)
+    return round(n, 2) if n is not None else default
+
+
+def parse_date(v):
+    """Return an ISO date string, or empty string if unparseable."""
+    if v is None or pd.isna(v):
+        return ""
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime.strptime(str(v).strip(), fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return ""
+
+
+def date_valid(v):
+    """Return True if the value is a parseable date."""
+    return bool(parse_date(v))
 
 ROOT = Path(__file__).resolve().parent.parent
 ENTITY_ORDER = [

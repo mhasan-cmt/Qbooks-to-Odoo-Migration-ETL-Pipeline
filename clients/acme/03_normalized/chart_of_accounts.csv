@@ -1,0 +1,8 @@
+id,code,name,account_type
+acc_1000,1000,Checking,asset_cash
+acc_1100,1100,Accounts Receivable,asset_receivable
+acc_2000,2000,Accounts Payable,liability_payable
+acc_3000,3000,Owner Equity,equity
+acc_4000,4000,Sales,income
+acc_5000,5000,COGS,expense_direct_cost
+acc_9999,9999,Suspense,asset_current
