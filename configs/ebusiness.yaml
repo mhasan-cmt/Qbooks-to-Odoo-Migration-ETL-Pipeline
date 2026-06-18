@@ -1,0 +1,78 @@
+# Client config: defines source files, column mappings, and account-type rules.
+# Copy this per client. Only this file + raw CSVs change between clients.
+
+client_name: 'Ebusiness Inc'
+cutoff_date: '2025-12-31' # opening balance date / migration boundary
+currency: 'USD'
+opening_balance_account: '9999' # suspense/opening account code in your CoA
+
+odoo:
+  url: '${ODOO_URL}' # read from env at runtime
+  db: '${ODOO_DB}'
+  username: '${ODOO_USER}'
+  password: '${ODOO_PASSWORD}' # use an API key
+
+# ---- Source files (relative to clients/<client>/01_raw/) ----
+sources:
+  chart_of_accounts: 'coa.xlsx'
+  partners: 'partners.csv' # customers + vendors combined or separate
+  invoices: 'open_invoices.csv'
+  bills: 'open_bills.csv'
+  payments: 'payments.csv' # optional
+  trial_balance: 'trial_balance.csv'
+
+# ---- Column mapping: QB column name -> canonical field ----
+# Canonical fields are what the pipeline understands internally.
+mappings:
+  chart_of_accounts:
+    'Account': code # or a dedicated code column
+    'Account Name': name
+    'Type': qb_type
+    'Balance': balance
+  partners:
+    'Customer/Vendor': name
+    'Type': relation # "customer" | "vendor"
+    'Email': email
+    'Phone': phone
+    'Bill Address': street
+    'Tax ID': vat
+    'Terms': payment_terms
+    'Open Balance': opening_balance
+  invoices:
+    'Customer': partner
+    'Num': ref
+    'Date': invoice_date
+    'Due Date': date_due
+    'Open Balance': amount_residual
+    'Amount': amount_total
+    'Account': account_code
+  bills:
+    'Vendor': partner
+    'Num': ref
+    'Date': invoice_date
+    'Due Date': date_due
+    'Open Balance': amount_residual
+    'Amount': amount_total
+    'Account': account_code
+
+# ---- QB account type -> Odoo account_type enum ----
+# Odoo enums: asset_receivable, asset_cash, asset_current, asset_non_current,
+#   asset_prepayments, asset_fixed, liability_payable, liability_credit_card,
+#   liability_current, liability_non_current, equity, equity_unaffected,
+#   income, income_other, expense, expense_depreciation, expense_direct_cost, off_balance
+account_type_map:
+  'Bank': asset_cash
+  'Accounts Receivable': asset_receivable
+  'Other Current Asset': asset_current
+  'Fixed Asset': asset_fixed
+  'Other Asset': asset_non_current
+  'Accounts Payable': liability_payable
+  'Credit Card': liability_credit_card
+  'Other Current Liability': liability_current
+  'Long Term Liability': liability_non_current
+  'Equity': equity
+  'Income': income
+  'Other Income': income_other
+  'Cost of Goods Sold': expense_direct_cost
+  'Expense': expense
+  'Other Expense': expense

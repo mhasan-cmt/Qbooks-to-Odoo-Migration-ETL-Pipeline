@@ -21,6 +21,17 @@ def main():
         print(f"         blocking={r['blocking']} warnings={r['warnings']} "
               f"clean={r['clean']}")
         print(f"         counts={r['counts']}")
+        
+        # Show sample of blocking issues
+        if r['blocking'] > 0 and 'blocking_issues' in r:
+            issues_df = r['blocking_issues']
+            print(f"\n>>> Top blocking issues (showing first 10 of {len(issues_df)}):")
+            for idx, (_, issue) in enumerate(issues_df.head(10).iterrows(), 1):
+                print(f"  {idx}. {issue['entity']}/{issue['ref']}: "
+                      f"{issue['field']} - {issue['issue']}")
+            if len(issues_df) > 10:
+                print(f"  ... and {len(issues_df) - 10} more. See full report in {r['report']}")
+        
         if a.stage == "all" and not r["clean"]:
             print("Blocking issues present. Fix source data (Stage 2) and re-run.")
             sys.exit(1)

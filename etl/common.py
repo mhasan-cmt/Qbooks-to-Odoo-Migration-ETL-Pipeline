@@ -54,7 +54,30 @@ def read_source(client: str, cfg: dict, entity: str) -> pd.DataFrame | None:
     p = raw_path(client, src)
     if not p.exists():
         return None
-    df = pd.read_csv(p, dtype=str, keep_default_na=False).replace("", pd.NA)
+    
+    # Detect file type and read accordingly
+    if p.suffix.lower() in ['.xlsx', '.xls']:
+        # Excel file
+        df = pd.read_excel(p, dtype=str)
+    else:
+        # CSV file - try multiple encodings
+        encodings = [None, 'latin-1', 'cp1252', 'utf-8-sig']
+        df = None
+        for enc in encodings:
+            try:
+                if enc is None:
+                    df = pd.read_csv(p, dtype=str, keep_default_na=False).replace("", pd.NA)
+                else:
+                    df = pd.read_csv(p, dtype=str, keep_default_na=False, encoding=enc).replace("", pd.NA)
+                return df
+            except (UnicodeDecodeError, LookupError):
+                continue
+            except Exception as e:
+                print(f"Error reading {entity} from {p}: {e}")
+                raise
+        # Last resort: read with error replacement
+        df = pd.read_csv(p, dtype=str, keep_default_na=False, encoding='utf-8', errors='replace').replace("", pd.NA)
+    
     return df
 
 

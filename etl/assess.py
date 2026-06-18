@@ -165,5 +165,9 @@ def run_assessment(client: str, cfg: dict) -> dict:
 
     blocking = int((idf["severity"] == "BLOCK").sum()) if len(idf) else 0
     warnings = int((idf["severity"] == "WARN").sum()) if len(idf) else 0
+    
+    # Get sample of blocking issues for display
+    blocking_issues = idf[idf["severity"] == "BLOCK"] if len(idf) else pd.DataFrame()
     return {"report": str(xlsx), "blocking": blocking,
-            "warnings": warnings, "counts": counts, "clean": blocking == 0}
+            "warnings": warnings, "counts": counts, "clean": blocking == 0,
+            "blocking_issues": blocking_issues}
